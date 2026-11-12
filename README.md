@@ -106,10 +106,6 @@ Never commit a `.env` file.
 3. Create a sandbox buyer and seller, pay from the buyer, and open an item-not-received dispute as the buyer.
 4. Click Sync from PayPal.
 
-## Deploy
-
-The project deploys as one free Render web service with a free Supabase database. The steps are in `DEPLOY.md` if present, or follow the same order: push to GitHub, create the Render service, set the environment variables, register the webhook, and add a free uptime monitor.
-
 ## Known limits
 
 - Sandbox only. Nothing here moves real money.
