@@ -1,7 +1,7 @@
 
 export const RULES_LAST_CHECKED = "2026-11-09";
 
-// Used only when PayPal doesn't give us a due date. Always labelled "estimated".
+
 export const FALLBACK_RESPONSE_DAYS = 10;
 
 export type DeadlineStatus = "overdue" | "critical" | "warning" | "ok";

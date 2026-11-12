@@ -32,14 +32,14 @@ export type ExecutableAction = {
 };
 export type Executor = (a: ExecutableAction) => Promise<Record<string, unknown>>;
 
-// No PayPal call is made. The real PayPal executor is added later.
+
 export const simulatedExecutor: Executor = async (a) => ({
   simulated: true,
   note: "No PayPal call was made",
   actionType: a.actionType,
 });
 
-// Creating an action NEVER runs it.
+
 export async function createAction(tenantId: string, rawInput: unknown, createdBy: string) {
   const parsed = createSchema.safeParse(rawInput);
   if (!parsed.success) throw new GateError("invalid", "Invalid action");
@@ -101,7 +101,7 @@ export async function approveAction(
     | { kind: "blocked"; reason: string }
     | { kind: "ok"; action: ExecutableAction };
 
-  // Phase 1: lock the row, check everything, mark approved, commit.
+
   const phase1 = await withTx<Phase1>(async (c) => {
     const { rows } = await c.query(
       `select a.id, a.dispute_id, a.action_type, a.amount_minor, a.currency,
@@ -180,7 +180,7 @@ export async function approveAction(
 
   if (phase1.kind === "blocked") throw new GateError("blocked", phase1.reason);
 
-  // Phase 2: run it. Only reachable once, because the row is no longer pending.
+
   let result: Record<string, unknown> | undefined;
   let failure: string | null = null;
   try {

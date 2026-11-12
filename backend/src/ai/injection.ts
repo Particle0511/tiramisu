@@ -27,8 +27,7 @@ const PATTERNS: { reason: string; re: RegExp }[] = [
   },
 ];
 
-// Removes zero-width and direction-control characters used to hide words,
-// and folds look-alike forms of letters.
+
 function normalize(text: string): string {
   return text
     .normalize("NFKC")

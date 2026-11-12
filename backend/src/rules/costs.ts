@@ -1,11 +1,11 @@
 import type { DeadlineStatus } from "./deadlines";
 
 export type CostInput = {
-  amountMinor: number; // disputed amount, whole minor units (8500 = 85.00)
+  amountMinor: number; 
   currency: string;
-  goodsCostMinor?: number; // what the goods cost the seller. Default 0.
-  disputeFeeMinor?: number; // any dispute fee the seller expects to pay. Default 0.
-  partialRefundMinor?: number; // optional partial refund the seller is considering
+  goodsCostMinor?: number; 
+  disputeFeeMinor?: number; 
+  partialRefundMinor?: number; 
   deadlineStatus: DeadlineStatus;
   evidenceCompletenessPercent: number;
 };

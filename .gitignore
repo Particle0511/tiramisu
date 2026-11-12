@@ -1,19 +1,30 @@
-# secrets - never commit
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Secrets: never commit these
 .env
 .env.*
 !.env.example
+*.pem
+*.key
 
-# dependencies
-node_modules/
-
-# build output
-dist/
-build/
-
-# logs and system files
+# Logs and caches
 *.log
-.DS_Store
+npm-debug.log*
+.vite/
+.cache/
+*.tsbuildinfo
 
-# editor
+# Editors and operating systems
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
+
+# Generated code dump that includes every file
+repomix-output.xml

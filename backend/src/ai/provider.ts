@@ -2,8 +2,6 @@ import { env } from "../config/env";
 
 export type ChatMessage = { role: "system" | "user"; content: string };
 
-// Calls any OpenAI-compatible chat endpoint and returns the raw JSON text.
-// The model gets no tools: it can only return text. It cannot act on anything.
 export async function chatJson(messages: ChatMessage[]): Promise<string> {
   const res = await fetch(`${env.AI_BASE_URL}/chat/completions`, {
     method: "POST",
@@ -21,7 +19,7 @@ export async function chatJson(messages: ChatMessage[]): Promise<string> {
   });
 
   if (!res.ok) {
-    // Status only. The body could echo back parts of the prompt.
+
     throw new Error(`AI provider returned status ${res.status}`);
   }
 

@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 
-// JSON with sorted keys, so the hash does not depend on key order
+
 export function stable(value: unknown): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value) ?? "null";

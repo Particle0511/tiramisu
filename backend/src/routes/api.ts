@@ -1,22 +1,33 @@
+import { settingsRouter } from "./settings";
 import { Router, type Request, type Response, type RequestHandler } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
+import { env } from "../config/env";
 import { pool } from "../db/client";
 import { withTx } from "../db/tx";
 import { requireAuth, requireOwner } from "../middleware/auth";
-import { computeDeadline, RULES_LAST_CHECKED } from "../rules/deadlines";
+import { RULES_LAST_CHECKED } from "../rules/deadlines";
+import { computeSellerDeadline } from "../rules/sellerDeadline";
 import { buildChecklist, type DisputeType } from "../rules/disputeTypes";
 import { compareOptions } from "../rules/costs";
 import { generateDraft, DraftError, MAX_GENERATIONS } from "../ai/draft";
+import { createRespondAction } from "../ai/respond";
 import { createAction, approveAction, rejectAction, GateError } from "../actions/gate";
 import { verifyChain, appendAudit } from "../audit/log";
 import { verifyPassword } from "../auth/stepUp";
 import { seedTenant } from "../db/seedData";
+import { syncFromPayPal } from "../paypal/sync";
+import { paypalExecutor } from "../paypal/actions";
+import { risksRouter } from "./risks";
+import { paypalRouter } from "./paypal";
 
 export const apiRouter = Router();
 apiRouter.use(requireAuth);
+apiRouter.use("/risks", risksRouter);
+apiRouter.use("/settings", settingsRouter);
+apiRouter.use("/paypal", paypalRouter);
 
-// Approvals and password re-checks: strict
+
 const approveLimiter = rateLimit({
   windowMs: 60_000,
   limit: 5,
@@ -25,7 +36,7 @@ const approveLimiter = rateLimit({
   message: { error: "Too many approval attempts, wait a minute" },
 });
 
-// Other write actions (draft, create action, demo data): looser
+
 const sensitiveLimiter = rateLimit({
   windowMs: 60_000,
   limit: 20,
@@ -36,7 +47,7 @@ const sensitiveLimiter = rateLimit({
 
 const idSchema = z.string().uuid();
 
-// Runs an async handler and turns known domain errors into clean HTTP codes
+
 const wrap =
   (fn: (req: Request, res: Response) => Promise<void>): RequestHandler =>
   (req, res, next) => {
@@ -56,9 +67,10 @@ const wrap =
   };
 
 function shapeDispute(row: any, recordTypes: string[]) {
-  const deadline = computeDeadline({
+   const deadline = computeSellerDeadline({
     responseDueAt: row.response_due_at,
     openedAt: row.opened_at,
+    status: row.status,
   });
   const checklist = buildChecklist((row.dispute_type ?? "OTHER") as DisputeType, recordTypes);
   return {
@@ -90,6 +102,23 @@ apiRouter.get("/me", (req, res) => {
     rulesLastChecked: RULES_LAST_CHECKED,
   });
 });
+
+apiRouter.post(
+  "/paypal/sync",
+  sensitiveLimiter,
+  requireOwner,
+  wrap(async (req, res) => {
+    const a = req.auth!;
+    const allowed = env.PAYPAL_SYNC_ALLOWED_EMAILS.split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+      if (!a.email || !(allowed.includes("*") || allowed.includes(a.email.toLowerCase()))) {
+      res.status(403).json({ error: "This account is not allowed to sync the PayPal Sandbox" });
+      return;
+    }
+    res.json(await syncFromPayPal(a.tenantId, a.email));
+  })
+);
 
 apiRouter.post(
   "/demo/seed",
@@ -160,7 +189,7 @@ apiRouter.get(
       ),
       pool.query(
         `select id, action_type, amount_minor, currency, status, expires_at, created_at,
-                created_by, decided_by
+                created_by, decided_by, payload
            from pending_actions
           where dispute_id = $1 and tenant_id = $2 order by created_at desc limit 20`,
         [id.data, tenantId]
@@ -183,7 +212,7 @@ apiRouter.get(
     res.json({
       dispute,
       records: recs.rows,
-      messages: msgs.rows, // render as plain text only
+      messages: msgs.rows, 
       options,
       draft: row.ai_draft,
       actions: acts.rows.map((a) => ({
@@ -225,6 +254,22 @@ apiRouter.post(
   })
 );
 
+
+apiRouter.post(
+  "/disputes/:id/respond",
+  sensitiveLimiter,
+  requireOwner,
+  wrap(async (req, res) => {
+    const id = idSchema.safeParse(req.params.id);
+    if (!id.success) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const a = req.auth!;
+    res.status(201).json(await createRespondAction(a.tenantId, id.data, a.email ?? a.userId));
+  })
+);
+
 apiRouter.post(
   "/actions",
   sensitiveLimiter,
@@ -262,7 +307,7 @@ apiRouter.post(
       res.status(403).json({ error: "Re-authentication failed" });
       return;
     }
-    const out = await approveAction(a.tenantId, id.data, a.email ?? a.userId);
+    const out = await approveAction(a.tenantId, id.data, a.email ?? a.userId, paypalExecutor);
     res.json(out);
   })
 );

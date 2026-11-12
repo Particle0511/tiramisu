@@ -8,11 +8,10 @@ export type EvidenceItem = {
   key: string;
   label: string;
   required: boolean;
-  recordType: string; // the kind of record that satisfies this item
+  recordType: string; 
 };
 
-// These lists are our working assumptions. Verify them against PayPal's
-// seller documentation and update RULES_LAST_CHECKED when you do.
+
 export const EVIDENCE_RULES: Record<DisputeType, EvidenceItem[]> = {
   ITEM_NOT_RECEIVED: [
     { key: "order", label: "Order details", required: true, recordType: "order" },
@@ -51,8 +50,8 @@ export type ChecklistItem = EvidenceItem & { found: boolean };
 
 export type Checklist = {
   items: ChecklistItem[];
-  completenessPercent: number; // share of REQUIRED items found
-  missingRequired: string[]; // labels
+  completenessPercent: number; 
+  missingRequired: string[]; 
 };
 
 export function buildChecklist(

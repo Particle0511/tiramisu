@@ -1,6 +1,5 @@
 import { env } from "../config/env";
 
-// Re-checks the user's password with Supabase. Used before approving money actions.
 export async function verifyPassword(email: string, password: string): Promise<boolean> {
   if (!email || !password || password.length > 200) return false;
   try {

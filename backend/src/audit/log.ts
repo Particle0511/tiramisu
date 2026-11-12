@@ -8,12 +8,12 @@ export type AuditInput = {
   action: string;
   targetType?: string;
   targetId?: string;
-  details?: Record<string, unknown>; // plain JSON only, and never secrets
+  details?: Record<string, unknown>; 
 };
 
-// Call inside a transaction so the log entry and the change commit together
+
 export async function appendAudit(c: PoolClient, input: AuditInput): Promise<void> {
-  // One writer per tenant at a time, so the chain cannot fork
+  
   await c.query("select pg_advisory_xact_lock(hashtext($1))", [input.tenantId]);
 
   const last = await c.query(

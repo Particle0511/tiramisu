@@ -22,7 +22,7 @@ async function callModel(messages: ChatMessage[]): Promise<string> {
   try {
     return await chatJson(messages);
   } catch (e) {
-    // One retry after a pause if the free tier rate limit was hit
+    
     if ((e as Error).message.includes("429")) {
       await sleep(10_000);
       return await chatJson(messages);
@@ -47,14 +47,14 @@ function parseStatements(raw: string): unknown {
 }
 
 export async function generateDraft(disputeId: string, tenantId: string) {
-  // Always scoped to the tenant
+
   const d = await pool.query(
     `select dispute_type, ai_generations from disputes where id = $1 and tenant_id = $2`,
     [disputeId, tenantId]
   );
   if (d.rowCount === 0) throw new DraftError("not_found", "Dispute not found");
 
-  // Atomic counter: counts failed attempts too, which protects the free quota
+
   const claim = await pool.query(
     `update disputes
         set ai_generations = ai_generations + 1, ai_status = 'pending'
@@ -82,7 +82,7 @@ export async function generateDraft(disputeId: string, tenantId: string) {
     content: r.content as string,
   }));
 
-  // Check every buyer message; flagged ones never reach the model
+ 
   const msgRows = await pool.query(
     `select id, body from messages
       where dispute_id = $1 and tenant_id = $2 and sender_role = 'buyer'
@@ -121,7 +121,7 @@ export async function generateDraft(disputeId: string, tenantId: string) {
     throw new DraftError("ai_failed", msg);
   }
 
-  // The evidence linker removes anything not backed by a real record
+  
   const linked = linkStatements(
     parsed,
     refs.map((r) => ({ id: r.ref, type: r.type, content: r.content }))

@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 import { env } from "../config/env";
 import { pool } from "../db/client";
 import { withTx } from "../db/tx";
+import { runWithTenant } from "../db/context";
 import { appendAudit } from "../audit/log";
 
 export type Role = "owner" | "viewer";
@@ -21,40 +22,39 @@ declare global {
 }
 
 async function provision(userId: string, email: string | null) {
-  const find = `select tenant_id, role from users where auth_user_id = $1`;
-  const found = await pool.query(find, [userId]);
+
+  const found = await pool.query(
+    "select out_tenant_id as tenant_id, out_role as role from app_find_user($1)",
+    [userId]
+  );
   if (found.rowCount) {
     return { tenantId: found.rows[0].tenant_id as string, role: found.rows[0].role as Role };
   }
 
-  return withTx(async (c) => {
-    // One request at a time per new user, so two tabs cannot create two tenants
-    await c.query("select pg_advisory_xact_lock(hashtext($1))", [userId]);
-    const again = await c.query(find, [userId]);
-    if (again.rowCount) {
-      return { tenantId: again.rows[0].tenant_id as string, role: again.rows[0].role as Role };
-    }
+  const made = await pool.query(
+    "select out_tenant_id as tenant_id, out_role as role, created from app_provision_user($1, $2)",
+    [userId, email]
+  );
+  const row = made.rows[0];
+  const tenantId = row.tenant_id as string;
 
-    const name = email ? email.split("@")[0] : "Seller";
-    const t = await c.query(`insert into tenants (name) values ($1) returning id`, [name]);
-    const tenantId = t.rows[0].id as string;
-
-    await c.query(
-      `insert into users (auth_user_id, tenant_id, email, role) values ($1, $2, $3, 'owner')`,
-      [userId, tenantId, email]
+  if (row.created) {
+    await runWithTenant(tenantId, () =>
+      withTx((c) =>
+        appendAudit(c, {
+          tenantId,
+          actor: email ?? userId,
+          action: "tenant.created",
+          targetType: "tenant",
+          targetId: tenantId,
+        })
+      )
     );
-    await appendAudit(c, {
-      tenantId,
-      actor: email ?? userId,
-      action: "tenant.created",
-      targetType: "tenant",
-      targetId: tenantId,
-    });
-    return { tenantId, role: "owner" as Role };
-  });
+  }
+  return { tenantId, role: row.role as Role };
 }
 
-// The tenant comes ONLY from the verified user. Never from the request body or URL.
+
 export const requireAuth: RequestHandler = async (req, res, next) => {
   try {
     const header = req.headers.authorization;
@@ -80,7 +80,9 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 
     const p = await provision(u.id, u.email ?? null);
     req.auth = { userId: u.id, email: u.email ?? null, tenantId: p.tenantId, role: p.role };
-    next();
+
+
+    runWithTenant(p.tenantId, () => next());
   } catch (e) {
     next(e);
   }

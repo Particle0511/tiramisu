@@ -8,10 +8,51 @@ export type LinkResult = {
 
 const MAX_STATEMENT_LENGTH = 1000;
 
-// Matches ID-like tokens: 6+ chars of letters, digits or hyphens, containing
-// at least one digit (tracking numbers, order IDs, ISO dates).
-// Plain words and short amounts like "85.00" do not match.
+
 const ID_LIKE = /\b(?=[a-z0-9-]*\d)[a-z0-9-]{6,}\b/gi;
+
+const MONTHS: Record<string, number> = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
+  may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8,
+  september: 9, sept: 9, sep: 9, october: 10, oct: 10,
+  november: 11, nov: 11, december: 12, dec: 12,
+};
+
+const MONTH_NAMES = Object.keys(MONTHS)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+
+
+const DATE_DMY = new RegExp(
+  `\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH_NAMES})\\.?,?\\s+(\\d{4})\\b`,
+  "gi"
+);
+
+const DATE_MDY = new RegExp(
+  `\\b(${MONTH_NAMES})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b`,
+  "gi"
+);
+
+function toIso(y: number, m: number, d: number): string | null {
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) {
+    return null; // for example 31 February
+  }
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+
+export function extractDates(text: string): { raw: string; iso: string | null }[] {
+  const found: { raw: string; iso: string | null }[] = [];
+  for (const m of text.matchAll(DATE_DMY)) {
+    found.push({ raw: m[0], iso: toIso(Number(m[3]), MONTHS[m[2].toLowerCase()], Number(m[1])) });
+  }
+  for (const m of text.matchAll(DATE_MDY)) {
+    found.push({ raw: m[0], iso: toIso(Number(m[3]), MONTHS[m[1].toLowerCase()], Number(m[2])) });
+  }
+  return found;
+}
 
 export function linkStatements(
   statements: unknown,
@@ -60,12 +101,26 @@ export function linkStatements(
     }
 
     const sourceText = ids.map((id) => byId.get(id)!.content.toLowerCase()).join("\n");
+
     const tokens = text.match(ID_LIKE) ?? [];
     const unsupported = tokens.find((t) => !sourceText.includes(t.toLowerCase()));
     if (unsupported) {
       dropped.push({
         text,
         reason: `Contains "${unsupported}" which is not in the cited records`,
+      });
+      continue;
+    }
+
+
+    const badDate = extractDates(text).find((d) => d.iso === null || !sourceText.includes(d.iso));
+    if (badDate) {
+      dropped.push({
+        text,
+        reason:
+          badDate.iso === null
+            ? `Contains "${badDate.raw}" which is not a valid date`
+            : `Contains the date "${badDate.raw}" which is not in the cited records`,
       });
       continue;
     }

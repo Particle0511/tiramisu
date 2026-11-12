@@ -39,8 +39,7 @@ create table if not exists disputes (
 create index if not exists disputes_tenant_idx on disputes (tenant_id);
 create index if not exists disputes_due_idx on disputes (response_due_at);
 
--- Lock every table by default. With no policies, the public (anon) key
--- can read and write nothing. Policies come in the next step.
+
 alter table tenants enable row level security;
 alter table webhook_events enable row level security;
 alter table disputes enable row level security;

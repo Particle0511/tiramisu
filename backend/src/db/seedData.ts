@@ -18,7 +18,7 @@ type Scenario = {
   messages: SeedMessage[];
 };
 
-// All people, orders and numbers are invented demo data.
+
 function scenarios(): Scenario[] {
   return [
     {
@@ -76,7 +76,7 @@ function scenarios(): Scenario[] {
   ];
 }
 
-// Safe to re-run: replaces this tenant's demo disputes
+
 export async function seedTenant(tenantId: string) {
   const client = await pool.connect();
   try {
