@@ -4,7 +4,6 @@ Seller protection for PayPal disputes. Tiramisu watches a seller's disputes, bui
 
 This is a hackathon project. It runs on the PayPal Sandbox with test accounts and test money only.
 
-Live demo: https://YOUR-SERVICE.onrender.com
 
 ## What it does
 
